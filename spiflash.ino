@@ -361,11 +361,11 @@ spi_bank_address_register_interactive(void)
 static uint8_t
 spi_rdscur(void)
 {
-    spi_cs(1);
-    spi_send(SPI_CMD_RDSCUR);
-    uint8_t r1 = spi_send(0x00);
-    spi_cs(0);
-    return r1;
+	spi_cs(1);
+	spi_send(SPI_CMD_RDSCUR);
+	uint8_t r1 = spi_send(0x00);
+	spi_cs(0);
+	return r1;
 }
 
 
@@ -416,9 +416,9 @@ spi_write_enable(bool enable = true)
 
 	spi_cs(1);
 	if (enable)
-	    spi_send(SPI_CMD_WREN);
+		spi_send(SPI_CMD_WREN);
 	else
-	    spi_send(SPI_CMD_WRDI);
+		spi_send(SPI_CMD_WRDI);
 	spi_cs(0);
 }
 
@@ -447,9 +447,9 @@ spi_write_enable_interactive(bool enable)
 static void
 spi_enter_otp_mode(bool enter)
 {
-    spi_cs(1);
-    spi_send(enter ? SPI_CMD_ENSO : SPI_CMD_EXSO);
-    spi_cs(0);
+	spi_cs(1);
+	spi_send(enter ? SPI_CMD_ENSO : SPI_CMD_EXSO);
+	spi_cs(0);
 }
 
 
@@ -888,12 +888,12 @@ loop()
 		spi_read(addr);
 		break;
 	case 'o':
-	        spi_enter_otp_mode(true);
-	        Serial.print("Entered OTP mode.\r\n");
+		spi_enter_otp_mode(true);
+		Serial.print("Entered OTP mode.\r\n");
 		break;
 	case 'O':
-	        spi_enter_otp_mode(false);
-	        Serial.print("Exited OTP mode.\r\n");
+		spi_enter_otp_mode(false);
+		Serial.print("Exited OTP mode.\r\n");
 		break;
 
 	case 's':
@@ -930,9 +930,9 @@ loop()
 	}
 
 	case 'g':
-	        Serial.print("Security register: ");
+		Serial.print("Security register: ");
 		usb_serial_writehex(spi_rdscur(), 2);
-	        Serial.print("\r\n");
+		Serial.print("\r\n");
 		break;
 
 	case 'b':
