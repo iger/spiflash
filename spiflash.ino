@@ -814,6 +814,7 @@ static const char usage[] =
 " eADDR       Erase a sector\r\n"
 " uADDR LEN   Upload new code for a section of the ROM\r\n"
 " sNN         Chip size in MB (in hex)\r\n"
+" SNN         Chip size in bytes (in hex)\r\n"
 " x           Read the status register\r\n"
 " XNN         Write the status register (in hex)\r\n"
 " t           Tri-state the pins to release the bus\r\n"
@@ -846,6 +847,13 @@ loop()
 
 	case 's':
 		chip_size = usb_serial_readhex() << 20;
+		break;
+
+	case 'S':
+		chip_size = usb_serial_readhex();
+		Serial.print("Chip size set to ");
+		Serial.print(chip_size);
+		Serial.print(" B.\r\n");
 		break;
 
 	case '.':
