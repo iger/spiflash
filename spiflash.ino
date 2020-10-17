@@ -25,7 +25,7 @@
  * 0x67 01100111 -- spi speed == 8 MHz
  * 0x8A 10001010 -- spi config 3.3v, CKP idle low, CKE active to idle, sample middle
  * 0x03 00000011 -- cs high
- * 
+ *
  * Manual mode:
 Bus Pirate v3b                                                                  
 Firmware v5.10 (r559)  Bootloader v4.4                                          
@@ -42,7 +42,7 @@ Power supplies ON, Pull-up resistors OFF, Normal outputs (H=3.3v, L=GND)
 MSB set: MOST sig bit first, Number of bits read/write: 8                       
 a/A/@ controls AUX pin                                                          
 SPI (spd ckp ske smp csl hiz)=( 4 0 1 0 1 0 )                                   
-*----------*                                           
+*----------*
  *
  * {0x95,0,0]
  *
@@ -123,7 +123,7 @@ setup()
 {
 	Serial.begin(115200);
 	SPI.begin();
-	
+
 	// keep the SPI flash unselected until we talk to it
 	pinMode(SPI_CS, OUTPUT);
 	spi_cs(0);
@@ -332,7 +332,7 @@ spi_bank_address_register_interactive(void)
 	buf[off++] = '\0';
 	Serial.println(buf);
 }
-		
+
 
 static uint32_t
 usb_serial_readhex(void)
@@ -437,7 +437,7 @@ spi_erase_sector_interactive(void)
 
 	Serial.print(buf);
 }
-	
+
 static void
 spi_read(
 	uint32_t addr
@@ -564,7 +564,7 @@ spi_upload(void)
 
 	char outbuf[32];
 	uint8_t off = 0;
-	
+
 	outbuf[off++] = fail ? '!' : 'G';
 	outbuf[off++] = ' ';
 	outbuf[off++] = hexdigit(addr >> 28);
@@ -625,7 +625,7 @@ spi_upload(void)
 			outbuf[off++] = '\0';
 			Serial.print(outbuf);
 		}
-			
+
 
 		spi_write_enable();
 		uint8_t r2 = spi_status();
@@ -636,7 +636,7 @@ spi_upload(void)
 		spi_send(addr >> 16);
 		spi_send(addr >>  8);
 		spi_send(addr >>  0);
-			
+
 		for (uint8_t i = 0 ; i < chunk_size ; i++)
 			spi_send(buf[i]);
 
@@ -681,7 +681,7 @@ spi_upload(void)
 			Serial.print(outbuf);
 			Serial.flush();
 		}
-			
+
 		// read a chunk of data from the serial port
 		// keeping track if this is an empty page (all 0xff)
 		bool all_ff = true;
@@ -746,7 +746,7 @@ spi_upload(void)
 
 			spi_cs(1);
 			spi_write_command(addr+i);
-			
+
 			for (uint16_t j = 0 ; j < 256 ; j++)
 				spi_send(buf[i+j]);
 
