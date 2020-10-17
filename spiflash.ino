@@ -122,6 +122,9 @@ void
 setup()
 {
 	Serial.begin(115200);
+	SPI.setSCK(SPI_SCLK);
+	SPI.setMOSI(SPI_MOSI);
+	SPI.setMISO(SPI_MISO);
 	SPI.begin();
 
 	// keep the SPI flash unselected until we talk to it
