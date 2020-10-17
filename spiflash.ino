@@ -85,6 +85,7 @@ SPI (spd ckp ske smp csl hiz)=( 4 0 1 0 1 0 )
 #define SPI_CMD_PP4		0x12 // Page Program with 4-byte address
 #define SPI_CMD_BRRD		0x16 // Read bank address register
 #define SPI_CMD_BRWR		0x17 // Write bank address register
+#define SPI_CMD_RDSCUR		0x2B // Read security register
 
 
 // Status Register bits
@@ -337,6 +338,17 @@ spi_bank_address_register_interactive(void)
 }
 
 
+static uint8_t
+spi_rdscur(void)
+{
+	spi_cs(1);
+	spi_send(SPI_CMD_RDSCUR);
+	uint8_t r1 = spi_send(0x00);
+	spi_cs(0);
+	return r1;
+}
+
+
 static uint32_t
 usb_serial_readhex(void)
 {
@@ -356,6 +368,20 @@ usb_serial_readhex(void)
 		else
 			return val;
 	}
+}
+
+
+void
+usb_serial_writehex(uint32_t hex, int8_t digits)
+{
+	char buf[16];
+	char * p = buf + 16;
+	*--p = '\0';
+	for (int8_t i = 0; i < digits; ++i) {
+		*--p = hexdigit(hex);
+		hex >>= 4;
+	}
+	Serial.print(p);
 }
 
 
@@ -783,6 +809,7 @@ static const char usage[] =
 " x           Read the status register\r\n"
 " XNN         Write the status register (in hex)\r\n"
 " t           Tri-state the pins to release the bus\r\n"
+" g           Read security register\r\n"
 " b           Read the bank address register\r\n"
 " BX          Write the bank address register\r\n"
 "\r\n"
@@ -828,6 +855,10 @@ loop()
 		spi_status_interactive();
 		break;
 	}
+
+	case 'g':
+		usb_serial_writehex(spi_rdscur(), 2);
+		break;
 
 	case 'b':
 	{
