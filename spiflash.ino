@@ -281,7 +281,7 @@ static uint8_t
 spi_status(void)
 {
 	spi_cs(1);
-	spi_send(SPI_CMD_RDSR); // RDSR
+	spi_send(SPI_CMD_RDSR);
 	uint8_t r1 = spi_send(0x00);
 	spi_cs(0);
 	return r1;
