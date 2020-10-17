@@ -75,6 +75,7 @@ SPI (spd ckp ske smp csl hiz)=( 4 0 1 0 1 0 )
 #define SPI_CMD_WRDI		0x04 // Write Disable
 #define SPI_CMD_WREN		0x06 // Write Enable
 #define SPI_CMD_RDID		0x9F // Read ID
+#define SPI_CMD_RDID90		0x90 // Read ID
 #define SPI_CMD_RDSR		0x05 // Read status register
 #define SPI_CMD_WRSR		0x01 // Write status register
 #define SPI_CMD_READ		0x03 // Read data bytes
@@ -233,34 +234,35 @@ spi_erase_command(
 
 /** Read electronic manufacturer and device id */
 static void
-spi_rdid(void)
+spi_rdid(uint8_t cmd)
 {
 	//delay(2);
 
 	spi_cs(1);
 	delayMicroseconds(100);
+	uint8_t b1, b2, b3, b4;
 
-#if 0
-	// RES -- read electronic id
-	spi_send(0x90);
-	spi_send(0x0);
-	spi_send(0x0);
-	spi_send(0x1);
-	uint8_t b1 = spi_send(0xFF);
-	uint8_t b2 = spi_send(0xFF);
-	uint8_t b3 = 0;
-	uint8_t b4 = 0;
-#else
-	// JEDEC RDID: 1 byte out, three bytes back
-	spi_send(SPI_CMD_RDID);
+	if (cmd == SPI_CMD_RDID90) {
+		// RES -- read electronic id
+		spi_send(cmd);
+		spi_send(0x0);
+		spi_send(0x0);
+		spi_send(0x0);
+		b1 = spi_send(0xFF);
+		b2 = spi_send(0xFF);
+		b3 = 0;
+		b4 = 0;
+	} else {
+		// JEDEC RDID: 1 byte out, three bytes back
+		spi_send(cmd);
 
-	// read 3 bytes back
-	uint8_t b1 = spi_send(0x01);
-	uint8_t b2 = spi_send(0x02);
-	uint8_t b3 = spi_send(0x04);
-	uint8_t b4 = spi_send(0x17);
-	//uint8_t b4 = 99;
-#endif
+		// read 3 bytes back
+		b1 = spi_send(0x01);
+		b2 = spi_send(0x02);
+		b3 = spi_send(0x04);
+		b4 = spi_send(0x17);
+		//b4 = 99;
+	}
 
 	spi_cs(0);
 	delay(1);
@@ -805,7 +807,8 @@ spi_upload(void)
 
 static const char usage[] =
 "Commands:\r\n"
-" i           Read RDID from the flash chip\r\n"
+" i           Read RDID from the flash chip (cmd 9F)\r\n"
+" I           Read RDID from the flash chip (cmd 90)\r\n"
 " rADDR       Read 16 bytes from address\r\n"
 " .           Read the next 16 bytes\r\n"
 " R           SPI dump\r\n"
@@ -839,7 +842,8 @@ loop()
 
 	switch(c)
 	{
-	case 'i': spi_rdid(); break;
+	case 'i': spi_rdid(SPI_CMD_RDID); break;
+	case 'I': spi_rdid(SPI_CMD_RDID90); break;
 	case 'r':
 		addr = usb_serial_readhex();
 		spi_read(addr);
