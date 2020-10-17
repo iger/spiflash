@@ -661,10 +661,7 @@ spi_upload(void)
 		(void) r2; // unused
 
 		spi_cs(1);
-		spi_send(0x02);
-		spi_send(addr >> 16);
-		spi_send(addr >>  8);
-		spi_send(addr >>  0);
+		spi_write_command(addr);
 
 		for (uint8_t i = 0 ; i < chunk_size ; i++)
 			spi_send(buf[i]);
