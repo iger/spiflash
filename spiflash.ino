@@ -846,7 +846,7 @@ loop()
 
 	case 'X':
 	{
-		// set the status register; WEL must be set first
+		// set the status register; WEL will be set first
 		uint8_t sr = usb_serial_readhex();
 		spi_write_status(sr);
 		spi_status_interactive();
