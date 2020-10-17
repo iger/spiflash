@@ -887,14 +887,6 @@ loop()
 		addr = usb_serial_readhex();
 		spi_read(addr);
 		break;
-	case 'o':
-		spi_enter_otp_mode(true);
-		Serial.print("Entered OTP mode.\r\n");
-		break;
-	case 'O':
-		spi_enter_otp_mode(false);
-		Serial.print("Exited OTP mode.\r\n");
-		break;
 
 	case 's':
 		chip_size = usb_serial_readhex() << 20;
@@ -971,6 +963,14 @@ loop()
 	case 'R': spi_dump(); prompt = false; break;
 	case 'w': spi_write_enable_interactive(true); break;
 	case 'W': spi_write_enable_interactive(false); break;
+	case 'o':
+		spi_enter_otp_mode(true);
+		Serial.print("Entered OTP mode.\r\n");
+		break;
+	case 'O':
+		spi_enter_otp_mode(false);
+		Serial.print("Exited OTP mode.\r\n");
+		break;
 	case 'e': spi_erase_sector_interactive(); break;
 	case 'u': spi_upload(); break;
 	case XMODEM_NAK:
