@@ -87,6 +87,8 @@ SPI (spd ckp ske smp csl hiz)=( 4 0 1 0 1 0 )
 #define SPI_CMD_BRRD		0x16 // Read bank address register
 #define SPI_CMD_BRWR		0x17 // Write bank address register
 #define SPI_CMD_RDSCUR		0x2B // Read security register
+#define SPI_CMD_ENSO		0xB1 // Enter secured OTP
+#define SPI_CMD_EXSO		0xC1 // Exit secured OTP
 
 
 // Status Register bits
@@ -424,6 +426,14 @@ spi_write_enable_interactive(bool enable)
 	Serial.print(buf);
 }
 
+
+static void
+spi_enter_otp_mode(bool enter)
+{
+	spi_cs(1);
+	spi_send(enter ? SPI_CMD_ENSO : SPI_CMD_EXSO);
+	spi_cs(0);
+}
 
 
 static void
@@ -812,6 +822,7 @@ static const char usage[] =
 " XNN         Write the status register (in hex)\r\n"
 " t           Tri-state the pins to release the bus\r\n"
 " g           Read security register\r\n"
+" o/O         ENSO/EXSO - Enter/leave OTP mode (area)\r\n"
 " b           Read the bank address register\r\n"
 " BX          Write the bank address register\r\n"
 "\r\n"
@@ -898,6 +909,8 @@ loop()
 	case 'R': spi_dump(); break;
 	case 'w': spi_write_enable_interactive(true); break;
 	case 'W': spi_write_enable_interactive(false); break;
+	case 'o': spi_enter_otp_mode(true); break;
+	case 'O': spi_enter_otp_mode(false); break;
 	case 'e': spi_erase_sector_interactive(); break;
 	case 'u': spi_upload(); break;
 	case XMODEM_NAK:
