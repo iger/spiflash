@@ -561,8 +561,6 @@ serial_write_nofail(const uint8_t * buffer, size_t size)
 static void
 spi_dump(void)
 {
-	const uint32_t end_addr = chip_size;
-
 	delay(1);
 
 	uint32_t addr = 0;
@@ -584,7 +582,7 @@ spi_dump(void)
 		Serial.flush();
 
 		addr += sizeof(buf);
-		if (addr >= end_addr)
+		if (addr >= chip_size)
 			break;
 	}
 
@@ -597,8 +595,6 @@ prom_send(void)
 	// Fire it up!
 	if (xmodem_init(&xmodem_block, 1) < 0)
 		return;
-
-	const uint32_t end_addr = chip_size;
 
 	//delay(1);
 
@@ -618,7 +614,7 @@ prom_send(void)
 			return;
 
 		addr += sizeof(xmodem_block.data);
-		if (addr >= end_addr)
+		if (addr >= chip_size)
 			break;
 	}
 
