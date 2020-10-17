@@ -838,6 +838,8 @@ loop()
 	if ((c = Serial.read()) == -1)
 		return;
 
+	bool prompt = true;
+
 	switch(c)
 	{
 	case 'i': spi_rdid(); break;
@@ -906,7 +908,7 @@ loop()
 		Serial.println("TRISTATE");
 		break;
 
-	case 'R': spi_dump(); break;
+	case 'R': spi_dump(); prompt = false; break;
 	case 'w': spi_write_enable_interactive(true); break;
 	case 'W': spi_write_enable_interactive(false); break;
 	case 'o': spi_enter_otp_mode(true); break;
@@ -924,5 +926,6 @@ loop()
 		break;
 	}
 
-	Serial.print(">");
+	if (prompt)
+		Serial.print(">");
 }
