@@ -25,7 +25,7 @@
  * 0x67 01100111 -- spi speed == 8 MHz
  * 0x8A 10001010 -- spi config 3.3v, CKP idle low, CKE active to idle, sample middle
  * 0x03 00000011 -- cs high
- * 
+ *
  * Manual mode:
 Bus Pirate v3b                                                                  
 Firmware v5.10 (r559)  Bootloader v4.4                                          
@@ -42,24 +42,29 @@ Power supplies ON, Pull-up resistors OFF, Normal outputs (H=3.3v, L=GND)
 MSB set: MOST sig bit first, Number of bits read/write: 8                       
 a/A/@ controls AUX pin                                                          
 SPI (spd ckp ske smp csl hiz)=( 4 0 1 0 1 0 )                                   
-*----------*                                           
+*----------*
  *
  * {0x95,0,0]
  *
  */
 #include <SPI.h>
 #include "xmodem.h"
+#include "ADC.h"
+#include "VREF.h"
 
 #ifdef CONFIG_SKETCHSAVER
 #include "SketchSaver/SketchSaver.h"
 #endif
 
 #if 1
-// teensy 3 pins
-#define SPI_CS   10 // white or yellow
-#define SPI_SCLK 13 // green
-#define SPI_MOSI 11 // blue or purple
-#define SPI_MISO 12 // brown
+// teensy 3 alt pins
+#define SPI_CS    2 // white or yellow
+#define SPI_SCLK 14 // green
+#define SPI_MOSI  7 // blue or purple
+#define SPI_MISO  8 // brown
+#define SPI_WP    0
+#define SPI_HOLD  1
+#define SPI_VCC  15
 #else
 // teensy 2 pins
 #define SPI_CS   0 // white or yellow
@@ -72,8 +77,10 @@ SPI (spd ckp ske smp csl hiz)=( 4 0 1 0 1 0 )
 #define SPI_PAGE_MASK	(SPI_PAGE_SIZE - 1)
 
 // Flash commands
+#define SPI_CMD_WRDI		0x04 // Write Disable
 #define SPI_CMD_WREN		0x06 // Write Enable
 #define SPI_CMD_RDID		0x9F // Read ID
+#define SPI_CMD_RDID90		0x90 // Read ID
 #define SPI_CMD_RDSR		0x05 // Read status register
 #define SPI_CMD_WRSR		0x01 // Write status register
 #define SPI_CMD_READ		0x03 // Read data bytes
@@ -85,6 +92,9 @@ SPI (spd ckp ske smp csl hiz)=( 4 0 1 0 1 0 )
 #define SPI_CMD_PP4		0x12 // Page Program with 4-byte address
 #define SPI_CMD_BRRD		0x16 // Read bank address register
 #define SPI_CMD_BRWR		0x17 // Write bank address register
+#define SPI_CMD_RDSCUR		0x2B // Read security register
+#define SPI_CMD_ENSO		0xB1 // Enter secured OTP
+#define SPI_CMD_EXSO		0xC1 // Exit secured OTP
 
 
 // Status Register bits
@@ -93,42 +103,55 @@ SPI (spd ckp ske smp csl hiz)=( 4 0 1 0 1 0 )
 #define SPI_WEL			0x02 // Write Enable
 
 
-static unsigned long chip_size; // in MB
+static uint32_t chip_size; // in bytes
 
-// 40 MHz for teensy 3
-static SPISettings spi_settings(10000000, MSBFIRST, SPI_MODE0);
+SPISettings spi_settings(20000000, MSBFIRST, SPI_MODE3);
+ADC* adc = new ADC();
 
 static inline void
 spi_cs(int i)
 {
-	// switch out of tristate mode, if we're in it
-
+//	if (i) {
+//		SPI.beginTransaction(spi_settings);
+//		delayMicroseconds(200);
+//	} else {
+//		SPI.endTransaction();
+//	}
+	
 	if (i)
 	{
 		pinMode(SPI_CS, OUTPUT);
-		SPI.begin();
-		SPI.beginTransaction(spi_settings);
+//		SPI.begin();
+//		SPI.beginTransaction(spi_settings);
 	} else {
-		SPI.endTransaction();
+//		SPI.endTransaction();
 	}
 
 	digitalWrite(SPI_CS, !i);
+	if (i) {
+//		delayMicroseconds(1);
+	} else {
+		delayMicroseconds(1);
+		digitalWrite(SPI_CS, 0);
+	}
 }
-
-
 
 
 void
 setup()
 {
 	Serial.begin(115200);
+	SPI.setSCK(SPI_SCLK);
+	SPI.setMOSI(SPI_MOSI);
+	SPI.setMISO(SPI_MISO);
 	SPI.begin();
-	
+	SPI.beginTransaction(spi_settings);
+
 	// keep the SPI flash unselected until we talk to it
 	pinMode(SPI_CS, OUTPUT);
 	spi_cs(0);
 
-	chip_size = 8;
+	chip_size = 8 * 1024 * 1024;
 }
 
 
@@ -226,34 +249,35 @@ spi_erase_command(
 
 /** Read electronic manufacturer and device id */
 static void
-spi_rdid(void)
+spi_rdid(uint8_t cmd)
 {
 	//delay(2);
 
 	spi_cs(1);
 	delayMicroseconds(100);
+	uint8_t b1, b2, b3, b4;
 
-#if 0
-	// RES -- read electronic id
-	spi_send(0x90);
-	spi_send(0x0);
-	spi_send(0x0);
-	spi_send(0x1);
-	uint8_t b1 = spi_send(0xFF);
-	uint8_t b2 = spi_send(0xFF);
-	uint8_t b3 = 0;
-	uint8_t b4 = 0;
-#else
-	// JEDEC RDID: 1 byte out, three bytes back
-	spi_send(SPI_CMD_RDID);
+	if (cmd == SPI_CMD_RDID90) {
+		// RES -- read electronic id
+		spi_send(cmd);
+		spi_send(0x0);
+		spi_send(0x0);
+		spi_send(0x0);
+		b1 = spi_send(0xFF);
+		b2 = spi_send(0xFF);
+		b3 = 0;
+		b4 = 0;
+	} else {
+		// JEDEC RDID: 1 byte out, three bytes back
+		spi_send(cmd);
 
-	// read 3 bytes back
-	uint8_t b1 = spi_send(0x01);
-	uint8_t b2 = spi_send(0x02);
-	uint8_t b3 = spi_send(0x04);
-	uint8_t b4 = spi_send(0x17);
-	//uint8_t b4 = 99;
-#endif
+		// read 3 bytes back
+		b1 = spi_send(0x01);
+		b2 = spi_send(0x02);
+		b3 = spi_send(0x04);
+		b4 = spi_send(0x17);
+		//b4 = 99;
+	}
 
 	spi_cs(0);
 	delay(1);
@@ -281,7 +305,7 @@ static uint8_t
 spi_status(void)
 {
 	spi_cs(1);
-	spi_send(SPI_CMD_RDSR); // RDSR
+	spi_send(SPI_CMD_RDSR);
 	uint8_t r1 = spi_send(0x00);
 	spi_cs(0);
 	return r1;
@@ -332,7 +356,18 @@ spi_bank_address_register_interactive(void)
 	buf[off++] = '\0';
 	Serial.println(buf);
 }
-		
+
+
+static uint8_t
+spi_rdscur(void)
+{
+    spi_cs(1);
+    spi_send(SPI_CMD_RDSCUR);
+    uint8_t r1 = spi_send(0x00);
+    spi_cs(0);
+    return r1;
+}
+
 
 static uint32_t
 usb_serial_readhex(void)
@@ -356,9 +391,23 @@ usb_serial_readhex(void)
 }
 
 
+void
+usb_serial_writehex(uint32_t hex, int8_t digits)
+{
+	char buf[16];
+	char * p = buf + 16;
+	*--p = '\0';
+	for (int8_t i = 0; i < digits && i < 16; ++i) {
+		*--p = hexdigit(hex);
+		hex >>= 4;
+	}
+	Serial.print(p);
+}
+
+
 /** Set the Write Enable (WEL) bit in the status register */
 static void
-spi_write_enable(void)
+spi_write_enable(bool enable = true)
 {
 	delay(2);
 
@@ -366,15 +415,18 @@ spi_write_enable(void)
 	(void) r1; // unused
 
 	spi_cs(1);
-	spi_send(SPI_CMD_WREN);
+	if (enable)
+	    spi_send(SPI_CMD_WREN);
+	else
+	    spi_send(SPI_CMD_WRDI);
 	spi_cs(0);
 }
 
 
 static void
-spi_write_enable_interactive(void)
+spi_write_enable_interactive(bool enable)
 {
-	spi_write_enable();
+	spi_write_enable(enable);
 
 	uint8_t r2 = spi_status();
 
@@ -382,7 +434,7 @@ spi_write_enable_interactive(void)
 	uint8_t off =0;
 	buf[off++] = hexdigit(r2 >> 4);
 	buf[off++] = hexdigit(r2 >> 0);
-	if ((r2 & SPI_WEL) == 0)
+	if (!!(r2 & SPI_WEL) != !!enable)
 		buf[off++] = '!';
 
 	buf[off++] = '\r';
@@ -391,6 +443,14 @@ spi_write_enable_interactive(void)
 	Serial.print(buf);
 }
 
+
+static void
+spi_enter_otp_mode(bool enter)
+{
+    spi_cs(1);
+    spi_send(enter ? SPI_CMD_ENSO : SPI_CMD_EXSO);
+    spi_cs(0);
+}
 
 
 static void
@@ -437,7 +497,7 @@ spi_erase_sector_interactive(void)
 
 	Serial.print(buf);
 }
-	
+
 static void
 spi_read(
 	uint32_t addr
@@ -482,18 +542,31 @@ spi_read(
 	buf[off++] = '\0';
 
 	Serial.print(buf);
+//	Serial.send_now();
 }
 
+static void
+serial_write_nofail(const uint8_t * buffer, size_t size)
+{
+	while (size > 0) {
+		int w = Serial.write(buffer, size);
+		if (w > 0) {
+			buffer += w;
+			size -= w;
+		}
+	}
+}
 
 /** Read the entire ROM out to the serial port. */
 static void
 spi_dump(void)
 {
-	const uint32_t end_addr = chip_size << 20;
+	const uint32_t end_addr = chip_size;
 
 	delay(1);
 
 	uint32_t addr = 0;
+//	uint8_t buf[256];
 	uint8_t buf[64];
 
 	while (1)
@@ -501,12 +574,14 @@ spi_dump(void)
 		spi_cs(1);
 		spi_read_command(addr);
 
-		for (uint8_t off = 0 ; off < sizeof(buf) ; off++)
+		for (uint32_t off = 0 ; off < sizeof(buf) ; off++)
 			buf[off] = spi_send(0);
 
 		spi_cs(0);
 
-		Serial.write(buf, sizeof(buf));
+		serial_write_nofail(buf, sizeof(buf));
+		Serial.send_now();
+		Serial.flush();
 
 		addr += sizeof(buf);
 		if (addr >= end_addr)
@@ -523,7 +598,7 @@ prom_send(void)
 	if (xmodem_init(&xmodem_block, 1) < 0)
 		return;
 
-	const uint32_t end_addr = chip_size << 20;
+	const uint32_t end_addr = chip_size;
 
 	//delay(1);
 
@@ -562,34 +637,17 @@ spi_upload(void)
 	// addr and len must be 4k aligned
 	const int fail = ((len & SPI_PAGE_MASK) != 0) || ((addr & SPI_PAGE_MASK) != 0);
 
-	char outbuf[32];
-	uint8_t off = 0;
-	
-	outbuf[off++] = fail ? '!' : 'G';
-	outbuf[off++] = ' ';
-	outbuf[off++] = hexdigit(addr >> 28);
-	outbuf[off++] = hexdigit(addr >> 24);
-	outbuf[off++] = hexdigit(addr >> 20);
-	outbuf[off++] = hexdigit(addr >> 16);
-	outbuf[off++] = hexdigit(addr >> 12);
-	outbuf[off++] = hexdigit(addr >>  8);
-	outbuf[off++] = hexdigit(addr >>  4);
-	outbuf[off++] = hexdigit(addr >>  0);
-	outbuf[off++] = ' ';
-	outbuf[off++] = hexdigit(len >> 20);
-	outbuf[off++] = hexdigit(len >> 16);
-	outbuf[off++] = hexdigit(len >> 12);
-	outbuf[off++] = hexdigit(len >>  8);
-	outbuf[off++] = hexdigit(len >>  4);
-	outbuf[off++] = hexdigit(len >>  0);
-	outbuf[off++] = '\r';
-	outbuf[off++] = '\n';
-	outbuf[off++] = '\0';
-
-	Serial.print(outbuf);
+	if (fail) {
+		Serial.print("bad request to write at address 0x");
+	} else {
+		Serial.print("writing at address 0x");
+	}
+	usb_serial_writehex(addr, 8);
+	Serial.print(" bytes 0x");
+	usb_serial_writehex(len, 8);
+	Serial.println();
 	if (fail)
 		return;
-
 
 	uint32_t offset = 0;
 #if 0
@@ -625,18 +683,15 @@ spi_upload(void)
 			outbuf[off++] = '\0';
 			Serial.print(outbuf);
 		}
-			
+
 
 		spi_write_enable();
 		uint8_t r2 = spi_status();
 		(void) r2; // unused
 
 		spi_cs(1);
-		spi_send(0x02);
-		spi_send(addr >> 16);
-		spi_send(addr >>  8);
-		spi_send(addr >>  0);
-			
+		spi_write_command(addr);
+
 		for (uint8_t i = 0 ; i < chunk_size ; i++)
 			spi_send(buf[i]);
 
@@ -650,7 +705,7 @@ spi_upload(void)
 		addr += chunk_size;
 	}
 
-	Serial.print("\r\ndone!\r\n");
+	Serial.print("done!\r\n");
 #else
 	// read an entire page, then compare it to what is in the ROM
 	const size_t chunk_size = SPI_PAGE_SIZE;
@@ -664,24 +719,12 @@ spi_upload(void)
 		// print the address every 256 KB
 		if ((addr & ((64 * SPI_PAGE_SIZE) - 1)) == 0)
 		{
-			off = 0;
-			outbuf[off++] = '\r';
-			outbuf[off++] = '\n';
-			outbuf[off++] = hexdigit(addr >> 28);
-			outbuf[off++] = hexdigit(addr >> 24);
-			outbuf[off++] = hexdigit(addr >> 20);
-			outbuf[off++] = hexdigit(addr >> 16);
-			outbuf[off++] = hexdigit(addr >> 12);
-			outbuf[off++] = hexdigit(addr >>  8);
-			outbuf[off++] = hexdigit(addr >>  4);
-			outbuf[off++] = hexdigit(addr >>  0);
-			outbuf[off++] = ':';
-			outbuf[off++] = ' ';
-			outbuf[off++] = '\0';
-			Serial.print(outbuf);
+			Serial.println();
+			usb_serial_writehex(addr, 8);
+			Serial.print(": ");
 			Serial.flush();
 		}
-			
+
 		// read a chunk of data from the serial port
 		// keeping track if this is an empty page (all 0xff)
 		bool all_ff = true;
@@ -718,14 +761,6 @@ spi_upload(void)
 			Serial.print('.');
 			match_count++;
 			continue;
-		} else
-		if (all_ff)
-		{
-			Serial.print('e');
-			empty_count++;
-		} else {
-			Serial.print('w');
-			write_count++;
 		}
 
 		// there was a mismatch. erase the page and write it
@@ -735,7 +770,11 @@ spi_upload(void)
 		// if the source was all 0xff, we do not need to write
 		// after the erase has completed
 		if (all_ff)
+		{
+			Serial.print('e');
+			empty_count++;
 			continue;
+		}
 
 		// write the 4K page in 256 byte chunks
 		for (uint16_t i = 0 ; i < chunk_size ; i += 256)
@@ -746,7 +785,7 @@ spi_upload(void)
 
 			spi_cs(1);
 			spi_write_command(addr+i);
-			
+
 			for (uint16_t j = 0 ; j < 256 ; j++)
 				spi_send(buf[i+j]);
 
@@ -756,6 +795,8 @@ spi_upload(void)
 			while (spi_status() & SPI_WIP)
 				;
 		}
+		Serial.print('w');
+		write_count++;
 	}
 
 	Serial.print("\r\nmatch: ");
@@ -764,24 +805,65 @@ spi_upload(void)
 	Serial.print(empty_count);
 	Serial.print(" write: ");
 	Serial.println(write_count);
+	Serial.flush();
 #endif
+}
+
+static void
+read_voltage() {
+	float voltage_target=3.3;
+ 
+	adc->setReference(ADC_REFERENCE::REF_3V3);
+	VREF::start(VREF_SC_MODE_LV_HIGHPOWERBUF);
+	VREF::waitUntilStable();
+	adc->setConversionSpeed(ADC_CONVERSION_SPEED::LOW_SPEED);
+	adc->setSamplingSpeed(ADC_SAMPLING_SPEED::LOW_SPEED);
+	adc->setConversionSpeed(ADC_CONVERSION_SPEED::LOW_SPEED, ADC_1);
+	adc->setSamplingSpeed(ADC_SAMPLING_SPEED::LOW_SPEED, ADC_1);
+	adc->setAveraging(32);
+	adc->setResolution(16);
+	adc->setAveraging(32, ADC_1);
+	adc->setResolution(16, ADC_1);
+
+	float va = (float) adc->analogRead(SPI_VCC, ADC_0) / adc->getMaxValue(ADC_0);
+	float v33 = 1.0/adc->analogRead(ADC_INTERNAL_SOURCE::BANDGAP)*adc->getMaxValue(ADC_0);
+	Serial.print("3.3V pin value: ");
+	Serial.print(v33, 5);
+	Serial.println(" V.");
+	Serial.print("  vcc det value: ");
+	Serial.print(va * v33, 5);
+	Serial.print(" V, drop: ");
+	Serial.print((1 - va) * v33, 5);
+	Serial.println(" V.");
+
+	Serial.print("Bandgap value: ");
+	//Serial.print(3.3*adc->analogRead(ADC_INTERNAL_SOURCE::BANDGAP)/adc->getMaxValue(ADC_0), 5);
+	adc->adc0->analogRead(ADC_INTERNAL_SOURCE::BANDGAP);
+	adc->adc0->differentialMode(); // Use differential mode for better precision.
+	Serial.print(voltage_target*adc->adc0->readSingle()/adc->getMaxValue(ADC_0), 5);
+	Serial.println(" V. (Should be between 0.97 and 1.03 V.)");
 }
 
 static const char usage[] =
 "Commands:\r\n"
-" i           Read RDID from the flash chip\r\n"
+" i           Read RDID from the flash chip (cmd 9F)\r\n"
+" I           Read RDID from the flash chip (cmd 90)\r\n"
 " rADDR       Read 16 bytes from address\r\n"
 " .           Read the next 16 bytes\r\n"
 " R           SPI dump\r\n"
 " w           Enable writes (interactive)\r\n"
+" W           Disable writes (interactive)\r\n"
 " eADDR       Erase a sector\r\n"
 " uADDR LEN   Upload new code for a section of the ROM\r\n"
 " sNN         Chip size in MB (in hex)\r\n"
+" SNN         Chip size in bytes (in hex)\r\n"
 " x           Read the status register\r\n"
-" XNN         Write the status register (in hex)\r\n"
 " t           Tri-state the pins to release the bus\r\n"
+" g           Read security register\r\n"
+" o/O         ENSO/EXSO - Enter/leave OTP mode (area)\r\n"
 " b           Read the bank address register\r\n"
 " BX          Write the bank address register\r\n"
+" v           Measure analog voltages\r\n"
 "\r\n"
 "To read the entire ROM, start an x-modem transfer.\r\n"
 "\r\n";
@@ -795,16 +877,37 @@ loop()
 	if ((c = Serial.read()) == -1)
 		return;
 
+	bool prompt = true;
+
 	switch(c)
 	{
-	case 'i': spi_rdid(); break;
+	case 'i': spi_rdid(SPI_CMD_RDID); break;
+	case 'I': spi_rdid(SPI_CMD_RDID90); break;
 	case 'r':
 		addr = usb_serial_readhex();
 		spi_read(addr);
 		break;
+	case 'o':
+	        spi_enter_otp_mode(true);
+	        Serial.print("Entered OTP mode.\r\n");
+		break;
+	case 'O':
+	        spi_enter_otp_mode(false);
+	        Serial.print("Exited OTP mode.\r\n");
+		break;
 
 	case 's':
+		chip_size = usb_serial_readhex() << 20;
+		Serial.print("Chip size set to ");
+		Serial.print(chip_size >> 20);
+		Serial.print(" MiB.\r\n");
+		break;
+
+	case 'S':
 		chip_size = usb_serial_readhex();
+		Serial.print("Chip size set to ");
+		Serial.print(chip_size);
+		Serial.print(" B.\r\n");
 		break;
 
 	case '.':
@@ -819,12 +922,18 @@ loop()
 
 	case 'X':
 	{
-		// set the status register; WEL must be set first
+		// set the status register; WEL will be set first
 		uint8_t sr = usb_serial_readhex();
 		spi_write_status(sr);
 		spi_status_interactive();
 		break;
 	}
+
+	case 'g':
+	        Serial.print("Security register: ");
+		usb_serial_writehex(spi_rdscur(), 2);
+	        Serial.print("\r\n");
+		break;
 
 	case 'b':
 	{
@@ -859,20 +968,28 @@ loop()
 		Serial.println("TRISTATE");
 		break;
 
-	case 'R': spi_dump(); break;
-	case 'w': spi_write_enable_interactive(); break;
+	case 'R': spi_dump(); prompt = false; break;
+	case 'w': spi_write_enable_interactive(true); break;
+	case 'W': spi_write_enable_interactive(false); break;
 	case 'e': spi_erase_sector_interactive(); break;
 	case 'u': spi_upload(); break;
 	case XMODEM_NAK:
 		prom_send();
 		Serial.print("xmodem done\r\n");
 		break;
+        case 'v': read_voltage(); break;
 	case '?': Serial.print(usage);
 		break;
+	case '\r':
+	case '\n':
+		Serial.print("\r\n");
+		break;
 	default:
-		Serial.print("?");
+		Serial.print("?\r\n");
 		break;
 	}
 
-	Serial.print(">");
+	if (prompt) {
+		Serial.print(">");
+        }
 }
