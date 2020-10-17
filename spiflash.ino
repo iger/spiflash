@@ -690,7 +690,7 @@ spi_upload(void)
 		addr += chunk_size;
 	}
 
-	Serial.print("\r\ndone!\r\n");
+	Serial.print("done!\r\n");
 #else
 	// read an entire page, then compare it to what is in the ROM
 	const size_t chunk_size = SPI_PAGE_SIZE;
@@ -872,7 +872,9 @@ loop()
 	}
 
 	case 'g':
+		Serial.print("Security register: ");
 		usb_serial_writehex(spi_rdscur(), 2);
+		Serial.print("\r\n");
 		break;
 
 	case 'b':
@@ -911,8 +913,14 @@ loop()
 	case 'R': spi_dump(); prompt = false; break;
 	case 'w': spi_write_enable_interactive(true); break;
 	case 'W': spi_write_enable_interactive(false); break;
-	case 'o': spi_enter_otp_mode(true); break;
-	case 'O': spi_enter_otp_mode(false); break;
+	case 'o':
+		spi_enter_otp_mode(true);
+		Serial.print("Entered OTP mode.\r\n");
+		break;
+	case 'O':
+		spi_enter_otp_mode(false);
+		Serial.print("Exited OTP mode.\r\n");
+		break;
 	case 'e': spi_erase_sector_interactive(); break;
 	case 'u': spi_upload(); break;
 	case XMODEM_NAK:
@@ -921,8 +929,12 @@ loop()
 		break;
 	case '?': Serial.print(usage);
 		break;
+	case '\r':
+	case '\n':
+		Serial.print("\r\n");
+		break;
 	default:
-		Serial.print("?");
+		Serial.print("?\r\n");
 		break;
 	}
 
