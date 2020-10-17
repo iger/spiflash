@@ -72,6 +72,7 @@ SPI (spd ckp ske smp csl hiz)=( 4 0 1 0 1 0 )
 #define SPI_PAGE_MASK	(SPI_PAGE_SIZE - 1)
 
 // Flash commands
+#define SPI_CMD_WRDI		0x04 // Write Disable
 #define SPI_CMD_WREN		0x06 // Write Enable
 #define SPI_CMD_RDID		0x9F // Read ID
 #define SPI_CMD_RDSR		0x05 // Read status register
@@ -387,7 +388,7 @@ usb_serial_writehex(uint32_t hex, int8_t digits)
 
 /** Set the Write Enable (WEL) bit in the status register */
 static void
-spi_write_enable(void)
+spi_write_enable(bool enable = true)
 {
 	delay(2);
 
@@ -395,15 +396,18 @@ spi_write_enable(void)
 	(void) r1; // unused
 
 	spi_cs(1);
-	spi_send(SPI_CMD_WREN);
+	if (enable)
+		spi_send(SPI_CMD_WREN);
+	else
+		spi_send(SPI_CMD_WRDI);
 	spi_cs(0);
 }
 
 
 static void
-spi_write_enable_interactive(void)
+spi_write_enable_interactive(bool enable)
 {
-	spi_write_enable();
+	spi_write_enable(enable);
 
 	uint8_t r2 = spi_status();
 
@@ -411,7 +415,7 @@ spi_write_enable_interactive(void)
 	uint8_t off =0;
 	buf[off++] = hexdigit(r2 >> 4);
 	buf[off++] = hexdigit(r2 >> 0);
-	if ((r2 & SPI_WEL) == 0)
+	if (!!(r2 & SPI_WEL) != !!enable)
 		buf[off++] = '!';
 
 	buf[off++] = '\r';
@@ -800,6 +804,7 @@ static const char usage[] =
 " .           Read the next 16 bytes\r\n"
 " R           SPI dump\r\n"
 " w           Enable writes (interactive)\r\n"
+" W           Disable writes (interactive)\r\n"
 " eADDR       Erase a sector\r\n"
 " uADDR LEN   Upload new code for a section of the ROM\r\n"
 " sNN         Chip size in MB (in hex)\r\n"
@@ -891,7 +896,8 @@ loop()
 		break;
 
 	case 'R': spi_dump(); break;
-	case 'w': spi_write_enable_interactive(); break;
+	case 'w': spi_write_enable_interactive(true); break;
+	case 'W': spi_write_enable_interactive(false); break;
 	case 'e': spi_erase_sector_interactive(); break;
 	case 'u': spi_upload(); break;
 	case XMODEM_NAK:
