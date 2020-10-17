@@ -97,7 +97,7 @@ SPI (spd ckp ske smp csl hiz)=( 4 0 1 0 1 0 )
 #define SPI_WEL			0x02 // Write Enable
 
 
-static unsigned long chip_size; // in MB
+static uint32_t chip_size; // in bytes
 
 // 40 MHz for teensy 3
 static SPISettings spi_settings(10000000, MSBFIRST, SPI_MODE0);
@@ -135,7 +135,7 @@ setup()
 	pinMode(SPI_CS, OUTPUT);
 	spi_cs(0);
 
-	chip_size = 8;
+	chip_size = 8 * 1024 * 1024;
 }
 
 
@@ -532,8 +532,6 @@ spi_read(
 static void
 spi_dump(void)
 {
-	const uint32_t end_addr = chip_size << 20;
-
 	delay(1);
 
 	uint32_t addr = 0;
@@ -552,7 +550,7 @@ spi_dump(void)
 		Serial.write(buf, sizeof(buf));
 
 		addr += sizeof(buf);
-		if (addr >= end_addr)
+		if (addr >= chip_size)
 			break;
 	}
 
@@ -565,8 +563,6 @@ prom_send(void)
 	// Fire it up!
 	if (xmodem_init(&xmodem_block, 1) < 0)
 		return;
-
-	const uint32_t end_addr = chip_size << 20;
 
 	//delay(1);
 
@@ -586,7 +582,7 @@ prom_send(void)
 			return;
 
 		addr += sizeof(xmodem_block.data);
-		if (addr >= end_addr)
+		if (addr >= chip_size)
 			break;
 	}
 
@@ -849,7 +845,7 @@ loop()
 		break;
 
 	case 's':
-		chip_size = usb_serial_readhex();
+		chip_size = usb_serial_readhex() << 20;
 		break;
 
 	case '.':
