@@ -537,14 +537,14 @@ spi_dump(void)
 	delay(1);
 
 	uint32_t addr = 0;
-	uint8_t buf[64];
+	uint8_t buf[256];
 
 	while (1)
 	{
 		spi_cs(1);
 		spi_read_command(addr);
 
-		for (uint8_t off = 0 ; off < sizeof(buf) ; off++)
+		for (uint32_t off = 0 ; off < sizeof(buf) ; off++)
 			buf[off] = spi_send(0);
 
 		spi_cs(0);
