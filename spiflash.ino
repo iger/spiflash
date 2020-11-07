@@ -723,7 +723,7 @@ spi_upload(void)
 
 		// read a chunk of data from the serial port
 		// keeping track if this is an empty page (all 0xff)
-		bool all_ff = true;
+		bool input_ff = true;
 		for (uint16_t i = 0 ; i < chunk_size; i++)
 		{
 			int c;
@@ -731,7 +731,7 @@ spi_upload(void)
 				;
 			buf[i] = c;
 			if (c != 0xff)
-				all_ff = false;
+				input_ff = false;
 		}
 
 		// read the flash and compare it to the buffer
@@ -765,7 +765,7 @@ spi_upload(void)
 
 		// if the source was all 0xff, we do not need to write
 		// after the erase has completed
-		if (all_ff)
+		if (input_ff)
 		{
 			Serial.print('e');
 			empty_count++;
