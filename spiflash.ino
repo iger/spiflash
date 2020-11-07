@@ -622,6 +622,27 @@ prom_send(void)
 	xmodem_fini(&xmodem_block);
 }
 
+/** Read from SPI flash and check if matches supplied data. */
+bool
+spi_flash_matches_data(uint32_t addr, const uint8_t data[], uint32_t size)
+{
+	bool matched = true;
+	spi_cs(1);
+	spi_read_command(addr);
+
+	for (uint32_t i = 0; i < size; i++)
+	{
+		uint8_t rom = spi_send(0);
+
+		if (data[i] == rom)
+			continue;
+
+		matched = false;
+		break;
+	}
+	spi_cs(0);
+	return matched;
+}
 
 /** Write some number of pages into the PROM. */
 static void
@@ -735,21 +756,7 @@ spi_upload(void)
 		}
 
 		// read the flash and compare it to the buffer
-		bool matched = true;
-		spi_cs(1);
-		spi_read_command(addr);
-
-		for (uint16_t i = 0 ; i < chunk_size; i++)
-		{
-			uint8_t rom = spi_send(0);
-
-			if (buf[i] == rom)
-				continue;
-
-			matched = false;
-			break;
-		}
-		spi_cs(0);
+		bool matched = spi_flash_matches_data(addr, buf, chunk_size);
 
 		if (matched)
 		{
