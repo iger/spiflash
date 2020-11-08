@@ -734,7 +734,7 @@ spi_upload(void)
 #else
 	// read an entire page, then compare it to what is in the ROM
 	const size_t chunk_size = SPI_PAGE_SIZE;
-	uint8_t buf[SPI_PAGE_SIZE];
+	static uint8_t buf[SPI_PAGE_SIZE];
 	int empty_count = 0;
 	int match_count = 0;
 	int write_count = 0;
@@ -745,10 +745,12 @@ spi_upload(void)
 		// print the address every 256 KB
 		if ((addr & ((64 * SPI_PAGE_SIZE) - 1)) == 0)
 		{
+#if 0
 			Serial.println();
 			usb_serial_writehex(addr, 8);
 			Serial.print(": ");
 			Serial.flush();
+#endif
 		}
 
 		// read a chunk of data from the serial port
@@ -769,20 +771,24 @@ spi_upload(void)
 
 			// read the flash and compare it to the buffer
 			bool matched = spi_flash_matches_data(addr, buf, chunk_size);
+
 			if (matched)
 			{
 				// everything matched, no need to touch this page
-				Serial.print('.');
+//				Serial.print('.');
 				match_count++;
 				break;
 			}
 
 			// warn if retrying
 			if (attempt > 0) {
+#if 0
 				Serial.print("\nWriting ");
 				usb_serial_writehex(addr, 8);
 				Serial.print(" attempt ");
 				usb_serial_writehex(attempt, 2);
+				Serial.flush();
+#endif
 				retry_count++;
 			}
 
@@ -795,7 +801,7 @@ spi_upload(void)
 			// after the erase has completed
 			if (input_ff)
 			{
-				Serial.print('e');
+//				Serial.print('e');
 				empty_count++;
 				continue;
 			}
@@ -819,7 +825,7 @@ spi_upload(void)
 				while (spi_status() & SPI_WIP)
 					;
 			}
-			Serial.print('w');
+//			Serial.print('w');
 			write_count++;
 		}
 	}
