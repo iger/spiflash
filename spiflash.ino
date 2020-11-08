@@ -730,6 +730,7 @@ spi_upload(void)
 	int empty_count = 0;
 	int match_count = 0;
 	int write_count = 0;
+	int retry_count = 0;
 
 	for (offset = 0 ; offset < len ; offset += chunk_size, addr += chunk_size)
 	{
@@ -755,51 +756,64 @@ spi_upload(void)
 				input_ff = false;
 		}
 
-		// read the flash and compare it to the buffer
-		bool matched = spi_flash_matches_data(addr, buf, chunk_size);
+		const int32_t max_retries = 5;
+		for (int32_t attempt = 0; attempt <= max_retries; ++attempt) {
 
-		if (matched)
-		{
-			// everything mached, no need to touch this page
-			Serial.print('.');
-			match_count++;
-			continue;
-		}
+			// read the flash and compare it to the buffer
+			bool matched = spi_flash_matches_data(addr, buf, chunk_size);
+			if (matched)
+			{
+				// everything matched, no need to touch this page
+				Serial.print('.');
+				match_count++;
+				break;
+			}
 
-		// there was a mismatch. erase the page and write it
-		spi_write_enable();
-		spi_erase_sector(addr);
+			// warn if retrying
+			if (attempt > 0) {
+				Serial.print("\nWriting ");
+				usb_serial_writehex(addr, 8);
+				Serial.print(" attempt ");
+				usb_serial_writehex(attempt, 2);
+				retry_count++;
+			}
 
-		// if the source was all 0xff, we do not need to write
-		// after the erase has completed
-		if (input_ff)
-		{
-			Serial.print('e');
-			empty_count++;
-			continue;
-		}
-
-		// write the 4K page in 256 byte chunks
-		for (uint16_t i = 0 ; i < chunk_size ; i += 256)
-		{
+			// there was a mismatch. erase the page and write it
 			spi_write_enable();
-			uint8_t r2 = spi_status();
-			(void) r2; // unused
+			spi_erase_sector(addr);
 
-			spi_cs(1);
-			spi_write_command(addr+i);
 
-			for (uint16_t j = 0 ; j < 256 ; j++)
-				spi_send(buf[i+j]);
+			// if the source was all 0xff, we do not need to write
+			// after the erase has completed
+			if (input_ff)
+			{
+				Serial.print('e');
+				empty_count++;
+				continue;
+			}
 
-			spi_cs(0);
+			// write the 4K page in 256 byte chunks
+			for (uint16_t i = 0 ; i < chunk_size ; i += 256)
+			{
+				spi_write_enable();
+				uint8_t r2 = spi_status();
+				(void) r2; // unused
 
-			// wait for write to finish
-			while (spi_status() & SPI_WIP)
-				;
+				spi_cs(1);
+				spi_write_command(addr+i);
+
+				for (uint16_t j = 0 ; j < 256 ; j++)
+					spi_send(buf[i+j]);
+
+				spi_cs(0);
+
+				// wait for write to finish
+				while (spi_status() & SPI_WIP)
+					;
+			}
+			Serial.print('w');
+			write_count++;
 		}
-		Serial.print('w');
-		write_count++;
 	}
 
 	Serial.print("\r\nmatch: ");
@@ -807,7 +821,9 @@ spi_upload(void)
 	Serial.print(" empty: ");
 	Serial.print(empty_count);
 	Serial.print(" write: ");
-	Serial.println(write_count);
+	Serial.print(write_count);
+	Serial.print(" retry: ");
+	Serial.println(retry_count);
 	Serial.flush();
 #endif
 }
