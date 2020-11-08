@@ -863,6 +863,14 @@ read_voltage() {
 	Serial.println(" V. (Should be between 0.97 and 1.03 V.)");
 }
 
+static void
+read_hold() {
+	pinMode(SPI_HOLD, INPUT);
+	bool v = digitalRead(SPI_HOLD);
+	Serial.print("Hold: ");
+	Serial.println(v ? "1" : "0");
+}
+
 static const char usage[] =
 "Commands:\r\n"
 " i           Read RDID from the flash chip (cmd 9F)\r\n"
@@ -882,6 +890,7 @@ static const char usage[] =
 " o/O         ENSO/EXSO - Enter/leave OTP mode (area)\r\n"
 " b           Read the bank address register\r\n"
 " BX          Write the bank address register\r\n"
+" h           Read hold pin\r\n"
 " v           Measure analog voltages\r\n"
 "\r\n"
 "To read the entire ROM, start an x-modem transfer.\r\n"
@@ -997,6 +1006,7 @@ loop()
 		Serial.print("xmodem done\r\n");
 		break;
         case 'v': read_voltage(); break;
+	case 'h': read_hold(); break;
 	case '?': Serial.print(usage);
 		break;
 	case '\r':
