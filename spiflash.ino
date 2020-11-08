@@ -622,6 +622,10 @@ prom_send(void)
 	xmodem_fini(&xmodem_block);
 }
 
+static uint32_t unmatch_addr;
+static uint8_t unmatch_data;
+static uint8_t unmatch_rom;
+
 /** Read from SPI flash and check if matches supplied data. */
 bool
 spi_flash_matches_data(uint32_t addr, const uint8_t data[], uint32_t size)
@@ -636,6 +640,10 @@ spi_flash_matches_data(uint32_t addr, const uint8_t data[], uint32_t size)
 
 		if (data[i] == rom)
 			continue;
+
+		unmatch_addr = addr + i;
+		unmatch_data = data[i];
+		unmatch_rom = rom;
 
 		matched = false;
 		break;
@@ -824,6 +832,13 @@ spi_upload(void)
 	Serial.print(write_count);
 	Serial.print(" retry: ");
 	Serial.println(retry_count);
+	Serial.write("Last unmatch @");
+	usb_serial_writehex(unmatch_addr, 8);
+	Serial.write(" ");
+	usb_serial_writehex(unmatch_rom, 2);
+	Serial.write(" -> ");
+	usb_serial_writehex(unmatch_data, 2);
+	Serial.println();
 	Serial.flush();
 #endif
 }
