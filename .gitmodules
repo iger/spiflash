@@ -1,0 +1,3 @@
+[submodule "ADC"]
+	path = ADC
+	url = git@github.com:iger/ADC.git
